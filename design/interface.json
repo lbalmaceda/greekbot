@@ -1,0 +1,334 @@
+{
+    "text": "",
+    "response_type": "in_channel",
+    "attachments": [
+        {
+            "text": "Administration (includes time off)",
+            "fallback": "If you could read this message, you'd be choosing something fun to do right now.",
+            "color": "#3AA3E3",
+            "attachment_type": "default",
+            "callback_id": "framework_form",
+            "actions": [
+                {
+                    "name": "administration",
+                    "text": "Select Hours Spent",
+                    "type": "select",
+                    "options": [
+                        {
+                            "text": "No",
+                            "value": "0"
+                        },
+                        {
+                            "text": "1 Hour",
+                            "value": "1"
+                        },
+                        {
+                            "text": "2 Hours",
+                            "value": "2"
+                        },
+                        {
+                            "text": "3 Hours",
+                            "value": "3"
+                        },
+                        {
+                            "text": "4 Hours",
+                            "value": "4"
+                        },
+                        {
+                            "text": "5 Hours",
+                            "value": "5"
+                        },
+                        {
+                            "text": "6 Hours",
+                            "value": "6"
+                        },
+                        {
+                            "text": "7 Hours",
+                            "value": "7"
+                        },
+                        {
+                            "text": "8 Hours",
+                            "value": "8"
+                        }
+                    ]
+                }
+            ]
+        },
+		 {
+            "text": "Operational",
+            "fallback": "If you could read this message, you'd be choosing something fun to do right now.",
+            "color": "#3AA3E3",
+            "attachment_type": "default",
+            "callback_id": "framework_form",
+            "actions": [
+                {
+                    "name": "operational",
+                    "text": "Select Hours Spent",
+                    "type": "select",
+                    "options": [
+                        {
+                            "text": "No",
+                            "value": "0"
+                        },
+                        {
+                            "text": "1 Hour",
+                            "value": "1"
+                        },
+                        {
+                            "text": "2 Hours",
+                            "value": "2"
+                        },
+                        {
+                            "text": "3 Hours",
+                            "value": "3"
+                        },
+                        {
+                            "text": "4 Hours",
+                            "value": "4"
+                        },
+                        {
+                            "text": "5 Hours",
+                            "value": "5"
+                        },
+                        {
+                            "text": "6 Hours",
+                            "value": "6"
+                        },
+                        {
+                            "text": "7 Hours",
+                            "value": "7"
+                        },
+                        {
+                            "text": "8 Hours",
+                            "value": "8"
+                        }
+                    ]
+                }
+            ]
+        },
+		 {
+            "text": "Product Innovation & Improvements",
+            "fallback": "If you could read this message, you'd be choosing something fun to do right now.",
+            "color": "#3AA3E3",
+            "attachment_type": "default",
+            "callback_id": "framework_form",
+            "actions": [
+                {
+                    "name": "product_innovation",
+                    "text": "Select Hours Spent",
+                    "type": "select",
+                    "options": [
+                        {
+                            "text": "No",
+                            "value": "0"
+                        },
+                        {
+                            "text": "1 Hour",
+                            "value": "1"
+                        },
+                        {
+                            "text": "2 Hours",
+                            "value": "2"
+                        },
+                        {
+                            "text": "3 Hours",
+                            "value": "3"
+                        },
+                        {
+                            "text": "4 Hours",
+                            "value": "4"
+                        },
+                        {
+                            "text": "5 Hours",
+                            "value": "5"
+                        },
+                        {
+                            "text": "6 Hours",
+                            "value": "6"
+                        },
+                        {
+                            "text": "7 Hours",
+                            "value": "7"
+                        },
+                        {
+                            "text": "8 Hours",
+                            "value": "8"
+                        }
+                    ]
+                }
+            ]
+        },
+		 {
+            "text": "Internal Team Request - Sales",
+            "fallback": "If you could read this message, you'd be choosing something fun to do right now.",
+            "color": "#3AA3E3",
+            "attachment_type": "default",
+            "callback_id": "framework_form",
+            "actions": [
+                {
+                    "name": "internal_sales",
+                    "text": "Select Hours Spent",
+                    "type": "select",
+                    "options": [
+                        {
+                            "text": "No",
+                            "value": "0"
+                        },
+                        {
+                            "text": "1 Hour",
+                            "value": "1"
+                        },
+                        {
+                            "text": "2 Hours",
+                            "value": "2"
+                        },
+                        {
+                            "text": "3 Hours",
+                            "value": "3"
+                        },
+                        {
+                            "text": "4 Hours",
+                            "value": "4"
+                        },
+                        {
+                            "text": "5 Hours",
+                            "value": "5"
+                        },
+                        {
+                            "text": "6 Hours",
+                            "value": "6"
+                        },
+                        {
+                            "text": "7 Hours",
+                            "value": "7"
+                        },
+                        {
+                            "text": "8 Hours",
+                            "value": "8"
+                        }
+                    ]
+                }
+            ]
+        }
+        ,
+		 {
+            "text": "Internal Team Request - CS (not support)",
+            "fallback": "If you could read this message, you'd be choosing something fun to do right now.",
+            "color": "#3AA3E3",
+            "attachment_type": "default",
+            "callback_id": "framework_form",
+            "actions": [
+                {
+                    "name": "internal_cs",
+                    "text": "Select Hours Spent",
+                    "type": "select",
+                    "options": [
+                        {
+                            "text": "No",
+                            "value": "0"
+                        },
+                        {
+                            "text": "1 Hour",
+                            "value": "1"
+                        },
+                        {
+                            "text": "2 Hours",
+                            "value": "2"
+                        },
+                        {
+                            "text": "3 Hours",
+                            "value": "3"
+                        },
+                        {
+                            "text": "4 Hours",
+                            "value": "4"
+                        },
+                        {
+                            "text": "5 Hours",
+                            "value": "5"
+                        },
+                        {
+                            "text": "6 Hours",
+                            "value": "6"
+                        },
+                        {
+                            "text": "7 Hours",
+                            "value": "7"
+                        },
+                        {
+                            "text": "8 Hours",
+                            "value": "8"
+                        }
+                    ]
+                }
+            ]
+        },
+		 {
+            "text": "Hack Time",
+            "fallback": "If you could read this message, you'd be choosing something fun to do right now.",
+            "color": "#3AA3E3",
+            "attachment_type": "default",
+            "callback_id": "framework_form",
+            "actions": [
+                {
+                    "name": "hack_time",
+                    "text": "Select Hours Spent",
+                    "type": "select",
+                    "options": [
+                         {
+                            "text": "No",
+                            "value": "0"
+                        },
+                        {
+                            "text": "1 Hour",
+                            "value": "1"
+                        },
+                        {
+                            "text": "2 Hours",
+                            "value": "2"
+                        },
+                        {
+                            "text": "3 Hours",
+                            "value": "3"
+                        },
+                        {
+                            "text": "4 Hours",
+                            "value": "4"
+                        },
+                        {
+                            "text": "5 Hours",
+                            "value": "5"
+                        },
+                        {
+                            "text": "6 Hours",
+                            "value": "6"
+                        },
+                        {
+                            "text": "7 Hours",
+                            "value": "7"
+                        },
+                        {
+                            "text": "8 Hours",
+                            "value": "8"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "text": "Finished?",
+            "fallback": "You are unable to submit the form",
+            "callback_id": "framework_form",
+            "color": "#3AA3E3",
+            "attachment_type": "default",
+            "actions": [
+                {
+                    "name": "Submit",
+                    "text": "Submit",
+                    "type": "button",
+                    "value": "submit"
+                }
+            ]
+        }
+    ]
+}
