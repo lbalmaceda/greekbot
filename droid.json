@@ -1,0 +1,15 @@
+{
+    "name": "dennis",
+    "script": "index.js",
+    "actions": [
+      {
+        "function": "help",
+        "aliases": ["help", "manual", "info"]
+      },
+      {
+        "function": "report",
+        "aliases": ["report"],
+        "premessage": "_Ok! Give me a second.._"
+      }
+    ]
+  }
