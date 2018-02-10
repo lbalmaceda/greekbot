@@ -13,6 +13,24 @@ var BOT_DM_WEBHOOK_URL;
 //<<<<
 
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false })) //Required to parse actions
+
+app.post('/slack/actions', (req, res) => {
+    console.log("New action received!")
+    //console.log(req.body.payload);
+
+    req.webtaskContext.storage.get((error, data) => {
+        if (error || !req.body.token || req.body.token !== data.slack_verification_token){
+          console.log("Request doesn't seems to come from Slack. Error:");
+          console.log(error);
+          return res.status(200)
+                    .send(req.body.original_message);
+        }
+
+        var message = handleAction(req.body.callback_id, req.body.actions, req.body.original_message);
+        return res.sendStatus(200, message);
+    });
+});
 
 app.post('/slack/events', (req, res) => {
   //FIXME:
@@ -22,9 +40,6 @@ app.post('/slack/events', (req, res) => {
     throw new Error("Secrets must be loaded in the Webtask");
   }
   //<<<<
-
-  console.log("body:");
-  console.log(req.body);
 
   if (req.body.type === 'url_verification'){
     //Slack verification handshake. Move this to a middleware
@@ -62,10 +77,26 @@ app.post('/slack/events', (req, res) => {
            .send("Can't handle this body");
 });
 
+var handleAction = (callbackId, originalMessage) => {
+    if (callbackId !== 'btn_submit'){
+        //ignore
+        return originalMessage;
+    }
+
+    originalMessage.attachments
+    actions.forEach(action => {
+    });
+}
+
 var handleEvent = (type, event) => {
-  if (type === 'app_mention'){
-    var text = event.text;
-    text = text.substr(text.indexOf(" ")+1);
+    if (type !== 'message' || event.subtype === 'bot_message'){
+            //ignore
+            return;
+    }
+    console.log(event);
+    
+    var text = event.text.trim();
+    //text = text.substr(text.indexOf(" ")+1);
     if (text === 'report'){
       //react to report
       sendMessage("Hello! Please complete the report below", reportFormAttachments);
@@ -73,8 +104,6 @@ var handleEvent = (type, event) => {
       //teach them how to use the app
       sendMessage("Please use `report` to begin completing your investment hours.");
     }
-    return;
-  }
   
   //other types?
 };
@@ -184,11 +213,10 @@ var reportFormAttachments = [
   {
       "text": "Administration (includes time off)",
       "color": "#3AA3E3",
-      "attachment_type": "default",
-      "callback_id": "framework_form",
+      "callback_id": "cat_adm",
       "actions": [
           {
-              "name": "administration",
+            "name": "administration",
               "text": "Select Hours Spent",
               "type": "select",
               "options": eightHours
@@ -198,8 +226,7 @@ var reportFormAttachments = [
       {
       "text": "Operational",
       "color": "#3AA3E3",
-      "attachment_type": "default",
-      "callback_id": "framework_form",
+      "callback_id": "cat_ope",
       "actions": [
           {
               "name": "operational",
@@ -212,8 +239,7 @@ var reportFormAttachments = [
       {
       "text": "Product Innovation & Improvements",
       "color": "#3AA3E3",
-      "attachment_type": "default",
-      "callback_id": "framework_form",
+      "callback_id": "cat_pro",
       "actions": [
           {
               "name": "product_innovation",
@@ -226,8 +252,7 @@ var reportFormAttachments = [
       {
       "text": "Internal Team Request - Sales",
       "color": "#3AA3E3",
-      "attachment_type": "default",
-      "callback_id": "framework_form",
+      "callback_id": "cat_req_sales",
       "actions": [
           {
               "name": "internal_sales",
@@ -241,8 +266,7 @@ var reportFormAttachments = [
       {
       "text": "Internal Team Request - CS (not support)",
       "color": "#3AA3E3",
-      "attachment_type": "default",
-      "callback_id": "framework_form",
+      "callback_id": "cat_req_cs",
       "actions": [
           {
               "name": "internal_cs",
@@ -255,8 +279,7 @@ var reportFormAttachments = [
       {
       "text": "Hack Time",
       "color": "#3AA3E3",
-      "attachment_type": "default",
-      "callback_id": "framework_form",
+      "callback_id": "cat_hck",
       "actions": [
           {
               "name": "hack_time",
@@ -268,8 +291,7 @@ var reportFormAttachments = [
   },
   {
       "text": "Finished?",
-      "callback_id": "framework_form",
-      "attachment_type": "default",
+      "callback_id": "btn_submit",
       "actions": [
           {
               "name": "Submit",
