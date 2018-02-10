@@ -10,31 +10,38 @@ const app = express();
 //Read secrets from Webtask Context
 //const BOT_DM_WEBHOOK_URL = context.secrets.BOT_DM_WEBHOOK_URL;
 var BOT_DM_WEBHOOK_URL;
+var SLACK_TOKEN;
 //<<<<
 
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false })) //Required to parse actions
+app.use(bodyParser.urlencoded({ extended: false, type: "application/x-www-form-urlencoded" })) //Required to parse actions
 
 app.post('/slack/actions', (req, res) => {
+  //FIXME:
+  //Get the secrets from the upper context
+    SLACK_TOKEN = req.webtaskContext.secrets.SLACK_TOKEN;
+    if (!SLACK_TOKEN){
+      throw new Error("Secrets must be loaded in the Webtask");
+    }
+
     console.log("New action received!")
-    //console.log(req.body.payload);
+    var payload = JSON.parse(req.body.payload);
 
     req.webtaskContext.storage.get((error, data) => {
-        if (error || !req.body.token || req.body.token !== data.slack_verification_token){
+        if (error || !payload.token || payload.token !== data.slack_verification_token){
           console.log("Request doesn't seems to come from Slack. Error:");
           console.log(error);
-          return res.status(200)
-                    .send(req.body.original_message);
+          return res.status(200).send('');
         }
 
-        var message = handleAction(req.body.callback_id, req.body.actions, req.body.original_message);
-        return res.sendStatus(200, message);
+        handleAction(payload.callback_id, payload);
+        return res.status(200).send('');
     });
 });
 
 app.post('/slack/events', (req, res) => {
   //FIXME:
-  //Get the secrets from the context
+  //Get the secrets from the upper context
   BOT_DM_WEBHOOK_URL = req.webtaskContext.secrets.BOT_DM_WEBHOOK_URL;
   if (!BOT_DM_WEBHOOK_URL){
     throw new Error("Secrets must be loaded in the Webtask");
@@ -77,19 +84,18 @@ app.post('/slack/events', (req, res) => {
            .send("Can't handle this body");
 });
 
-var handleAction = (callbackId, originalMessage) => {
-    if (callbackId !== 'btn_submit'){
-        //ignore
-        return originalMessage;
+var handleAction = (callbackId, payload) => {
+    console.log(payload);
+    
+    if (callbackId === 'btn_open_dialog'){
+        openDialog(dialogForm, payload.trigger_id);
     }
-
-    originalMessage.attachments
-    actions.forEach(action => {
-    });
 }
 
 var handleEvent = (type, event) => {
-    if (type !== 'message' || event.subtype === 'bot_message'){
+    if (type !== 'message' || 
+        event.message && event.message.subtype === 'bot_message' ||
+        event.subtype === 'bot_message'){
             //ignore
             return;
     }
@@ -99,7 +105,7 @@ var handleEvent = (type, event) => {
     //text = text.substr(text.indexOf(" ")+1);
     if (text === 'report'){
       //react to report
-      sendMessage("Hello! Please complete the report below", reportFormAttachments);
+      sendMessage("Hello! Please complete the report below", openReportDialogButton);
     } else {
       //teach them how to use the app
       sendMessage("Please use `report` to begin completing your investment hours.");
@@ -117,25 +123,39 @@ var sendMessage = (text, attachments) => {
     message.attachments = attachments;
   }
 
-  var options = {
-    uri: BOT_DM_WEBHOOK_URL,
-    method: 'POST',
-    json: message
-  };
-  
-  request(options, (error, response, body) => {
-      if (error){
-        console.log("Request errored")
-        console.log(error);
-        return;
-      }
-      if (response.statusCode != 200) {
-        console.log("Response not successful")
-        console.log(body);
-        //Should we retry instead?
-      }
-  });
+  makeRequest(BOT_DM_WEBHOOK_URL, message);
 };
+
+var openDialog = (dialog, triggerId) => {
+    var payload = {};
+    payload.dialog = dialog;
+    payload.trigger_id = triggerId;
+    makeRequest("https://slack.com/api/dialog.open", payload, SLACK_TOKEN);
+}
+
+var makeRequest = (uri, body, token) => {
+    var options = {
+        uri: uri,
+        method: 'POST',
+        json: body
+    };
+    if(token){
+        options.headers = {'Authorization': 'Bearer ' + token}
+    }
+        
+    request(options, (error, response, body) => {
+        if (error){
+            console.log("Request errored")
+            console.log(error);
+            return;
+        }
+        if (response.statusCode != 200) {
+            console.log("Response not successful")
+            //Should we retry instead?
+        }
+        console.log(body);        
+    });
+}
 
 var submitReport = (reportData) => {
 // Format Input
@@ -302,3 +322,36 @@ var reportFormAttachments = [
       ]
   }
 ];
+
+var openReportDialogButton = [{
+    "text": "When you're ready press the Fill button to complete your report.",
+    "callback_id": "btn_open_dialog",
+    "actions": [
+        {
+            "name": "submit",
+            "text": "Fill",
+            "type": "button",
+            "style": "success",
+            "value": "submit"
+        }
+    ]
+}];
+
+
+var dialogForm = {
+    "callback_id": "ryde-46e2b0",
+    "title": "Request a Ride",
+    "submit_label": "Request",
+    "elements": [
+      {
+        "type": "text",
+        "label": "Pickup Location",
+        "name": "loc_origin"
+      },
+      {
+        "type": "text",
+        "label": "Dropoff Location",
+        "name": "loc_destination"
+      }
+    ]
+  }
