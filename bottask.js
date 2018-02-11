@@ -4,6 +4,8 @@ import request from 'request';
 import express from 'express';
 import { fromExpress } from 'webtask-tools';
 import bodyParser from 'body-parser';
+import _ from 'underscore';
+import moment from 'moment';
 const app = express();
 
 
@@ -12,6 +14,7 @@ const app = express();
 var BOT_DM_WEBHOOK_URL;
 var SLACK_TOKEN;
 //<<<<
+var WORK_HOURS_DAY = 8;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false, type: "application/x-www-form-urlencoded" })) //Required to parse actions
@@ -34,8 +37,8 @@ app.post('/slack/actions', (req, res) => {
           return res.status(200).send('');
         }
 
-        handleAction(payload.callback_id, payload);
-        return res.status(200).send('');
+        var body = handleAction(payload.type, payload.callback_id, payload);
+        return res.status(200).send(body);
     });
 });
 
@@ -84,12 +87,68 @@ app.post('/slack/events', (req, res) => {
            .send("Can't handle this body");
 });
 
-var handleAction = (callbackId, payload) => {
+var handleAction = (type, callbackId, payload) => {
     console.log(payload);
     
-    if (callbackId === 'btn_open_dialog'){
+    if (type === 'interactive_message' && callbackId === 'btn_open_dialog'){
         openDialog(dialogForm, payload.trigger_id);
+    } else if (type === 'dialog_submission' && callbackId === 'report_dialog'){
+        var errorDescription = validateReport(payload.submission);
+        if (errorDescription){
+            return errorDescription;
+        }
+        var report = prepareReport(payload);
+        submitReport(report);
     }
+}
+
+var validateReport = (data) => {    
+    var hours = _.reduce(_.values(data), (sum, value)=>{
+        if(value){
+            return sum + parseInt(value);
+        } else {
+            return sum;
+        }
+    }, 0);
+
+    console.log("Sum is: " + hours);
+    if (hours !== WORK_HOURS_DAY){
+        return {errors: [{
+            name: 'cat_operational',
+            error: 'Maybe this value is wrong?'
+        }]}
+    }
+}
+
+var prepareReport = (payload) => {
+    
+// Format Input
+//   {
+//    "crew": "brucke",
+//        "user": "walsh",
+//        "date": "2018-02-09",
+//        "category": {
+//                "administration": 2,
+//                "operational": 0,
+//                "product_innovation": 4,
+//                "internal_sales": 2,
+//                "internal_cs": 0,
+//                "hack_time": 0
+//         }
+//   }
+
+    var report = {};
+    report.user = payload.user;
+    report.date = moment().unix();
+    var hours = _.mapObject(payload.submission, (val)=> {
+        if(val){
+            return parseInt(val);
+        } else {
+            return 0;
+        }
+    });
+    report.categories = hours;
+    return report;
 }
 
 var handleEvent = (type, event) => {
@@ -157,21 +216,7 @@ var makeRequest = (uri, body, token) => {
     });
 }
 
-var submitReport = (reportData) => {
-// Format Input
-//   {
-//    "crew": "brucke",
-//        "user": "walsh",
-//        "date": "2018-02-09",
-//        "category": {
-//                "administration": 2,
-//                "operational": 0,
-//                "product_innovation": 4,
-//                "internal_sales": 2,
-//                "internal_cs": 0,
-//                "hack_time": 0
-//         }
-//   }
+var submitReport = (report) => {
 
   // Save S3 - 'username-date.json'
 
@@ -192,134 +237,36 @@ module.exports = fromExpress(app);
 
 var eightHours = [
   {
-      "text": "No",
-      "value": "0"
-  },
-  {
-      "text": "1 Hour",
+      "label": "1 Hour",
       "value": "1"
   },
   {
-      "text": "2 Hours",
+      "label": "2 Hours",
       "value": "2"
   },
   {
-      "text": "3 Hours",
+      "label": "3 Hours",
       "value": "3"
   },
   {
-      "text": "4 Hours",
+      "label": "4 Hours",
       "value": "4"
   },
   {
-      "text": "5 Hours",
+      "label": "5 Hours",
       "value": "5"
   },
   {
-      "text": "6 Hours",
+      "label": "6 Hours",
       "value": "6"
   },
   {
-      "text": "7 Hours",
+      "label": "7 Hours",
       "value": "7"
   },
   {
-      "text": "8 Hours",
+      "label": "8 Hours",
       "value": "8"
-  }
-];
-
-var reportFormAttachments = [
-  {
-      "text": "Administration (includes time off)",
-      "color": "#3AA3E3",
-      "callback_id": "cat_adm",
-      "actions": [
-          {
-            "name": "administration",
-              "text": "Select Hours Spent",
-              "type": "select",
-              "options": eightHours
-          }
-      ]
-  },
-      {
-      "text": "Operational",
-      "color": "#3AA3E3",
-      "callback_id": "cat_ope",
-      "actions": [
-          {
-              "name": "operational",
-              "text": "Select Hours Spent",
-              "type": "select",
-              "options": eightHours
-          }
-      ]
-  },
-      {
-      "text": "Product Innovation & Improvements",
-      "color": "#3AA3E3",
-      "callback_id": "cat_pro",
-      "actions": [
-          {
-              "name": "product_innovation",
-              "text": "Select Hours Spent",
-              "type": "select",
-              "options": eightHours
-          }
-      ]
-  },
-      {
-      "text": "Internal Team Request - Sales",
-      "color": "#3AA3E3",
-      "callback_id": "cat_req_sales",
-      "actions": [
-          {
-              "name": "internal_sales",
-              "text": "Select Hours Spent",
-              "type": "select",
-              "options": eightHours
-          }
-      ]
-  }
-  ,
-      {
-      "text": "Internal Team Request - CS (not support)",
-      "color": "#3AA3E3",
-      "callback_id": "cat_req_cs",
-      "actions": [
-          {
-              "name": "internal_cs",
-              "text": "Select Hours Spent",
-              "type": "select",
-              "options": eightHours
-          }
-      ]
-  },
-      {
-      "text": "Hack Time",
-      "color": "#3AA3E3",
-      "callback_id": "cat_hck",
-      "actions": [
-          {
-              "name": "hack_time",
-              "text": "Select Hours Spent",
-              "type": "select",
-              "options": eightHours
-          }
-      ]
-  },
-  {
-      "text": "Finished?",
-      "callback_id": "btn_submit",
-      "actions": [
-          {
-              "name": "Submit",
-              "text": "Submit",
-              "type": "button",
-              "value": "submit"
-          }
-      ]
   }
 ];
 
@@ -331,27 +278,56 @@ var openReportDialogButton = [{
             "name": "submit",
             "text": "Fill",
             "type": "button",
-            "style": "success",
+            "style": "primary",
             "value": "submit"
         }
     ]
 }];
 
-
 var dialogForm = {
-    "callback_id": "ryde-46e2b0",
+    "callback_id": "report_dialog",
     "title": "Request a Ride",
     "submit_label": "Request",
     "elements": [
-      {
-        "type": "text",
-        "label": "Pickup Location",
-        "name": "loc_origin"
-      },
-      {
-        "type": "text",
-        "label": "Dropoff Location",
-        "name": "loc_destination"
-      }
+        {
+            "label": "Administration & TimeOff",
+            "type": "select",
+            "name": "cat_administration",
+            "placeholder": "Select a value",
+            "optional": true,
+            "options": eightHours
+        },
+        {
+            "label": "Operational",
+            "type": "select",
+            "name": "cat_operational",
+            "placeholder": "Select a value",
+            "optional": true,
+            "options": eightHours
+        },
+        {
+            "label": "Product",
+            "type": "select",
+            "name": "cat_product",
+            "placeholder": "Select a value",
+            "optional": true,
+            "options": eightHours
+        },
+        {
+            "label": "Internal Team Request",
+            "type": "select",
+            "name": "cat_request",
+            "placeholder": "Select a value",
+            "optional": true,
+            "options": eightHours
+        },
+        {
+            "label": "Hack Time",
+            "type": "select",
+            "name": "cat_hack",
+            "placeholder": "Select a value",
+            "optional": true,
+            "options": eightHours
+        },
     ]
   }
