@@ -6,88 +6,19 @@ import { fromExpress } from 'webtask-tools';
 import bodyParser from 'body-parser';
 import _ from 'underscore';
 import moment from 'moment';
-const app = express();
-
+const AWS = require('aws-sdk');
 
 //Read secrets from Webtask Context
-//const BOT_DM_WEBHOOK_URL = context.secrets.BOT_DM_WEBHOOK_URL;
 let BOT_DM_WEBHOOK_URL;
 let SLACK_TOKEN;
+let AWS_ACCESS_KEY_ID;
+let AWS_SECRET_ACCESS_KEY;
 //<<<<
 let WORK_HOURS_DAY = 8;
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false, type: "application/x-www-form-urlencoded" })) //Required to parse actions
-
-app.post('/slack/actions', (req, res) => {
-  //FIXME:
-  //Get the secrets from the upper context
-    SLACK_TOKEN = req.webtaskContext.secrets.SLACK_TOKEN;
-    if (!SLACK_TOKEN){
-      throw new Error("Secrets must be loaded in the Webtask");
-    }
-
-    console.log("New action received!")
-    let payload = JSON.parse(req.body.payload);
-
-    req.webtaskContext.storage.get((error, data) => {
-        if (error || !payload.token || payload.token !== data.slack_verification_token){
-          console.log("Request doesn't seems to come from Slack. Error:");
-          console.log(error);
-          return res.status(200).send('');
-        }
-
-        let body = handleAction(payload.type, payload.callback_id, payload);
-        return res.status(200).send(body);
-    });
-});
-
-app.post('/slack/events', (req, res) => {
-  //FIXME:
-  //Get the secrets from the upper context
-  BOT_DM_WEBHOOK_URL = req.webtaskContext.secrets.BOT_DM_WEBHOOK_URL;
-  if (!BOT_DM_WEBHOOK_URL){
-    throw new Error("Secrets must be loaded in the Webtask");
-  }
-  //<<<<
-
-  if (req.body.type === 'url_verification'){
-    //Slack verification handshake. Move this to a middleware
-    console.log("Handling Slack handshake");
-    let data = {};
-    data.slack_verification_token = req.body.token;
-    req.webtaskContext.storage.set(data, { force: 1 }, (error) => {
-      if (error) {
-        console.log("wt storage error:");
-        console.log(error);
-        return res.status(500)
-                .send("Handshake failed");
-      } 
-      return res.status(200)
-        .send({"challenge" : req.body.challenge});
-    });
-    return;
-  }
-
-  if (req.body.type === 'event_callback'){
-    console.log("New event received!");
-    req.webtaskContext.storage.get((error, data) => {
-      if (error || !req.body.token || req.body.token !== data.slack_verification_token){
-        console.log("Request doesn't seems to come from Slack. Error:");
-        console.log(error);
-        return res.sendStatus(200);
-      }
-      handleEvent(req.body.event.type, req.body.event);
-      return res.sendStatus(200);
-    });
-    return;
-  }
-  
-  return res.status(500)
-           .send("Can't handle this body");
-});
 
 let handleAction = (type, callbackId, payload) => {
+    console.log("New action received!")
     console.log(payload);
     
     if (type === 'interactive_message' && callbackId === 'btn_open_dialog'){
@@ -156,8 +87,10 @@ let handleEvent = (type, event) => {
         event.message && event.message.subtype === 'bot_message' ||
         event.subtype === 'bot_message'){
             //ignore
+            console.log("---- Ignoring BOT message. ----");            
             return;
     }
+    console.log("New event received!");
     console.log(event);
     
     let text = event.text.trim();
@@ -222,29 +155,74 @@ let submitReport = (report) => {
 
 };
 
-module.exports = fromExpress(app);
 
 
+/// Express Middlewares
 
+let middleware = function(req, res, next){
+    //Load environment variables from Webtask Context
+    loadWebtaskSecrets(req.webtaskContext.secrets);
 
+    //Check if this is the slack handshake
+    if (req.body.type === 'url_verification'){
+        return replySlackHandshake(req, res);
+    }
 
+    if (req.path.includes('/slack/actions')){
+        //User actions are stringified
+        req.body = JSON.parse(req.body.payload); 
+    }
+    
+    req.webtaskContext.storage.get((error, data) => {
+        if (error || !req.body.token || req.body.token !== data.slack_verification_token){
+          console.error("Request doesn't seems to come from Slack. Error:");
+          console.error(error);
+          return res.status(200).send('');
+        }
+        next();
+    });
+}
 
+let loadWebtaskSecrets = (secrets) => {
+    SLACK_TOKEN = secrets.SLACK_TOKEN;
+    BOT_DM_WEBHOOK_URL = secrets.BOT_DM_WEBHOOK_URL;
+    AWS_ACCESS_KEY_ID = secrets.AWS_ACCESS_KEY_ID;
+    AWS_SECRET_ACCESS_KEY = secrets.AWS_SECRET_ACCESS_KEY;
+
+    if (!SLACK_TOKEN || !BOT_DM_WEBHOOK_URL 
+        // || !AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY
+    ){
+        throw new Error("Secrets must be loaded in the Webtask");
+    }
+}
+
+let replySlackHandshake = (req, res) => {
+    console.log("Handling Slack handshake");
+    //Store token
+    req.webtaskContext.storage.set(
+        { slack_verification_token : req.body.token },
+        { force: 1 },
+        (error) => {
+            if (error) {
+                console.log("wt storage error:");
+                console.log(error);
+                return res.status(500)
+                        .send("Handshake failed");
+            } 
+            return res.status(200)
+                .send({"challenge" : req.body.challenge});
+    });
+}
 
 ///
 /// Storage Logic
 ///
 
-const AWS = require('aws-sdk');
-const moment = require('moment');
-
 AWS.config.update({region:'us-east-1'});
 
 // Create an S3 client
 const s3 = new AWS.S3();
-
-//Must be defined in the webtask's secrets
-AWS_ACCESS_KEY_ID = req.webtaskContext.secrets.AWS_ACCESS_KEY_ID;
-AWS_SECRET_ACCESS_KEY = req.webtaskContext.secrets.AWS_SECRET_ACCESS_KEY;
+//FIXME: const athena = new AWS.Athena();
 
 // Create a bucket and upload something into it
 let bucketName = 'dennis-storage';
@@ -260,9 +238,6 @@ let body = {
     internal_cs : 3,
     hacktime : 2
 };
-
-const athena = new AWS.Athena();
-
 
 let report = {
     team: "brucke",
@@ -355,7 +330,7 @@ function executeQuery(sqlQuery, callback)
     });
 }
 
-getQueryResults = function(queryExecutionId, callback)
+function getQueryResults(queryExecutionId, callback)
 {
     let params = {
         QueryExecutionId: queryExecutionId
@@ -398,6 +373,32 @@ getQueryResults = function(queryExecutionId, callback)
 }
 
 
+
+// Express APP - Routing
+
+const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false, type: "application/x-www-form-urlencoded" })); //Required to parse actions
+app.use('/slack/*', middleware);
+
+app.post('/slack/actions', (req, res) => {
+    res.status(200).send(body);
+    let body = handleAction(req.body.type, req.body.callback_id, req.body);
+    return;
+});
+
+app.post('/slack/events', (req, res) => {
+  if (req.body.type === 'event_callback'){
+    res.sendStatus(200);
+    handleEvent(req.body.event.type, req.body.event);
+    return;
+  }
+  
+  return res.status(500)
+           .send("Can't handle this body");
+});
+
+module.exports = fromExpress(app);
 
 
 
