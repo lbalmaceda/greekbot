@@ -1,6 +1,23 @@
 
+## description
+Secret Greekbot. Prepares nice souvlakis.
 
+## environment variables
 
+### slack App and interaction
+```
+SLACK_TOKEN
+SLACK_VERIFICATION_TOKEN
+BOT_DM_WEBHOOK_URL
+```
+
+### storage using AWS
+
+```
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+S3_OUTPUT_LOCATION
+```
 ## bottask.js file
 Webtask file that uses Slack Events API and WebHooks.
 
