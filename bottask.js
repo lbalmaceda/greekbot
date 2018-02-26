@@ -16,13 +16,76 @@ let AWS_SECRET_ACCESS_KEY;
 //<<<<
 let WORK_HOURS_DAY = 8;
 
+const engCategories = [
+    {name: "Administration & TimeOff", key: "cat_adm", color: "#a76e56"},
+    {name: "Operational", key: "cat_ops", color: "#43fd21"},
+    {name: "Product", key: "cat_prod", color: "#d52d6f"},
+    {name: "Internal Team Request", key: "cat_req_internal", color: "#2093e0"},
+    {name: "External Team Request", key: "cat_req_external", color: "#631ec7"},
+    {name: "Hack Time", key: "cat_hack", color: "#ffff50"}
+]
 
-let handleAction = (type, callbackId, payload) => {
+//Report structure
+// {
+//     entries : [
+//         {
+//             key: "cat_adm", 
+//             hours: 3
+//         }
+//     ],
+//     totalHours : 4
+// }
+
+let handleAction = (payload, storage) => {
     console.log("New action received!")
-    console.log(payload);
-    
-    if (type === 'interactive_message' && callbackId === 'btn_open_dialog'){
-        openDialog(dialogForm, payload.trigger_id);
+    console.log(JSON.stringify(payload));
+    let type = payload.type;
+    let callbackId = payload.callback_id;
+
+    if (type === 'interactive_message'){
+        if (callbackId === 'btn_start_report'){
+            //FIXME: Don't use an interactive button for this, as requires
+            //that we edit the message to remove the button later...
+            processNextCategory();
+        } else if (callbackId.startsWith('cat_')) {
+            storage.get((error, data) =>{
+                if (error){
+                    console.error("Partial report reading error. " + error);
+                }
+
+                if (!data.reports){
+                    data.reports = {};
+                }
+                let report = data.reports[payload.user.id] || {};
+                report.entries = report.entries || [];
+                let currentTotalHours = report.totalHours || 0;
+                let hoursAmount = parseInt(payload.actions[0].selected_options[0].value);
+                if (currentTotalHours + hoursAmount > WORK_HOURS_DAY){
+                    console.error("Something went wrong. The counted hours are exceeding the max!");
+                }
+                let entry = { key: callbackId, hours: hoursAmount };
+                report.entries.push(entry);
+                report.totalHours = currentTotalHours + hoursAmount;
+                
+                //Continue with Slack response, save to Storage later
+                processNextCategory(report);
+
+                //Save to Storage
+                data.reports[payload.user.id] = report;
+                storage.set(data, (error) => {
+                    if (error){
+                        console.error("Partial report saving error. " + error);
+                    }
+                });
+            });
+        } else if (callbackId == 'confirm_report'){
+            if (payload.actions[0].value === 'submit'){
+                //Submit && then delete data
+            } else if (payload.actions[0].value === 'cancel'){
+                //Delete data
+            }
+            //Edit the message. Remove the buttons
+        }
     } else if (type === 'dialog_submission' && callbackId === 'report_dialog'){
         let errorDescription = validateReport(payload.submission);
         if (errorDescription){
@@ -30,6 +93,25 @@ let handleAction = (type, callbackId, payload) => {
         }
         let report = prepareReport(payload);
         submitReport(report);
+    }
+}
+
+let processNextCategory = (report) => {
+    let category;
+    if (!report || !report.entries){
+        category = engCategories[0];
+    } else if (engCategories.length > report.entries.length){
+        category = engCategories[report.entries.length];
+    } 
+
+    let totalHours = (report && report.totalHours) ? report.totalHours : 0;
+    if (category && totalHours < WORK_HOURS_DAY){
+        let message = reportMessageFor(category, WORK_HOURS_DAY - totalHours);
+        makeRequest(BOT_DM_WEBHOOK_URL, message);
+    } else {
+        //Send report summary. 
+        console.log("> > > > > > > > > The report has been completed");
+        makeRequest(BOT_DM_WEBHOOK_URL, reportSummaryMessage(report));
     }
 }
 
@@ -97,7 +179,7 @@ let handleEvent = (type, event) => {
     //text = text.substr(text.indexOf(" ")+1);
     if (text === 'report'){
       //react to report
-      sendMessage("Hello! Please complete the report below", openReportDialogButton);
+      sendMessage("Hello! Please complete the report below", startReportMessage);
     } else {
       //teach them how to use the app
       sendMessage("Please use `report` to begin completing your investment hours.");
@@ -117,13 +199,6 @@ let sendMessage = (text, attachments) => {
 
   makeRequest(BOT_DM_WEBHOOK_URL, message);
 };
-
-let openDialog = (dialog, triggerId) => {
-    let payload = {};
-    payload.dialog = dialog;
-    payload.trigger_id = triggerId;
-    makeRequest("https://slack.com/api/dialog.open", payload, SLACK_TOKEN);
-}
 
 let makeRequest = (uri, body, token) => {
     let options = {
@@ -168,7 +243,7 @@ let middleware = function(req, res, next){
         return replySlackHandshake(req, res);
     }
 
-    if (req.path.includes('/slack/actions')){
+    if (req.baseUrl.includes('/slack/actions')){
         //User actions are stringified
         req.body = JSON.parse(req.body.payload); 
     }
@@ -179,7 +254,22 @@ let middleware = function(req, res, next){
           console.error(error);
           return res.status(200).send('');
         }
-        next();
+
+        // if (!req.body.user){
+            return next();
+        // }
+
+        //Recover previous report, if available.
+        // req.webtaskContext.storage.get((error, data) => {
+        //     if (error){
+        //         console.error(error);
+        //         return res.status(200).send('');
+        //     }
+        //     if (data.reports && data.reports[req.body.user.id]){
+        //         req.report = data.reports[req.body.user.id];
+        //     }
+        //     next();            
+        // });
     });
 }
 
@@ -383,7 +473,7 @@ app.use('/slack/*', middleware);
 
 app.post('/slack/actions', (req, res) => {
     res.status(200).send(body);
-    let body = handleAction(req.body.type, req.body.callback_id, req.body);
+    let body = handleAction(req.body, req.webtaskContext.storage);
     return;
 });
 
@@ -407,44 +497,10 @@ module.exports = fromExpress(app);
 // Slack Messages
 //
 
-const eightHours = [
-  {
-      "label": "1 Hour",
-      "value": "1"
-  },
-  {
-      "label": "2 Hours",
-      "value": "2"
-  },
-  {
-      "label": "3 Hours",
-      "value": "3"
-  },
-  {
-      "label": "4 Hours",
-      "value": "4"
-  },
-  {
-      "label": "5 Hours",
-      "value": "5"
-  },
-  {
-      "label": "6 Hours",
-      "value": "6"
-  },
-  {
-      "label": "7 Hours",
-      "value": "7"
-  },
-  {
-      "label": "8 Hours",
-      "value": "8"
-  }
-];
-
-const openReportDialogButton = [{
+//FIXME: This should not be a button. Better begin as soon as "report" is received
+const startReportMessage = [{
     "text": "When you're ready press the Fill button to complete your report.",
-    "callback_id": "btn_open_dialog",
+    "callback_id": "btn_start_report",
     "actions": [
         {
             "name": "submit",
@@ -456,50 +512,83 @@ const openReportDialogButton = [{
     ]
 }];
 
-const dialogForm = {
-    "callback_id": "report_dialog",
-    "title": "Request a Ride",
-    "submit_label": "Request",
-    "elements": [
-        {
-            "label": "Administration & TimeOff",
-            "type": "select",
-            "name": "cat_administration",
-            "placeholder": "Select a value",
-            "optional": true,
-            "options": eightHours
-        },
-        {
-            "label": "Operational",
-            "type": "select",
-            "name": "cat_operational",
-            "placeholder": "Select a value",
-            "optional": true,
-            "options": eightHours
-        },
-        {
-            "label": "Product",
-            "type": "select",
-            "name": "cat_product",
-            "placeholder": "Select a value",
-            "optional": true,
-            "options": eightHours
-        },
-        {
-            "label": "Internal Team Request",
-            "type": "select",
-            "name": "cat_request",
-            "placeholder": "Select a value",
-            "optional": true,
-            "options": eightHours
-        },
-        {
-            "label": "Hack Time",
-            "type": "select",
-            "name": "cat_hack",
-            "placeholder": "Select a value",
-            "optional": true,
-            "options": eightHours
-        },
-    ]
-  }
+let reportMessageFor = (category, remainingHours) => {
+    return {
+        "text": "Report completion in progress",
+        "response_type": "in_channel",
+        "attachments": [
+            {
+                "text": "How many hours have you spent on *" + category.name + "*",
+                "attachment_type": "default",
+                "callback_id": category.key,
+                "color": category.color,
+                "actions": [
+                    generateOptions(remainingHours)
+                ]
+            }
+        ]};
+}
+
+let reportSummaryMessage = (report) => {
+    let sum = "";
+    engCategories.forEach(c => {
+        let entry = _.find(report.entries, (e) => e.key === c.key);
+        let hours = entry ? entry.hours : 0;
+        sum = sum.concat("_"+c.name+":_ " + hours + " hours\n");
+    });
+    sum = sum.concat("\n");
+    return {
+        "text": "This is your report summary: \n" + sum,
+        "response_type": "in_channel",
+        "attachments": [
+            {
+                "text": "Are you ready to submit this report?",
+                "fallback": "You are unable to choose a game",
+                "color": "#3AA3E3",
+                "callback_id" : "confirm_report",
+                "attachment_type": "default",
+                "actions": [
+                    {
+                        "name": "confirm_report",
+                        "text": "Submit",
+                        "type": "button",
+                        "style": "primary",
+                        "value": "submit"
+                    },
+                    {
+                        "name": "confirm_report",
+                        "text": "Cancel",
+                        "type": "button",
+                        "style": "danger",
+                        "value": "cancel",
+                        "confirm": {
+                            "title": "Are you sure?",
+                            "text": "You will have to start over again."
+                        }
+                    }
+                ]
+            }
+        ]
+    };
+}
+
+let generateOptions = (remainingHours) => {
+    //Remaining hours must be > 0
+    let options = [{
+        "text": "None",
+        "value": "0"
+    }];
+    for (let i=1; i<=remainingHours; i++){
+        options.push({
+            "text": i + " Hours",
+            "value": i//.toString()
+        })
+    }
+
+    return {
+        "name": "hours",
+        "text": "Select a value",
+        "type": "select",
+        "options": options
+    };
+}
